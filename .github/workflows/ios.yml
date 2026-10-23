@@ -43,14 +43,19 @@ jobs:
           else:
               raise RuntimeError('UI fixture failed to start')
           PY
+      - name: Configure simulator software keyboard
+        timeout-minutes: 1
+        # Optional host preference; the UI test still requires and uses a real keyboard.
+        continue-on-error: true
+        run: /usr/bin/defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
       - name: Select and boot an installed simulator
+        timeout-minutes: 10
         id: simulator
         shell: bash
         env:
           DEVICE_KIND: ${{ matrix.device }}
         run: |
           xcodebuild -version
-          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
           simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys,os; d=json.load(sys.stdin); devices=d["devices"][os.environ["SIMULATOR_RUNTIME"]]; print(next(x["udid"] for x in devices if x["name"].startswith(os.environ["DEVICE_KIND"])))')
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
           echo "Simulator: $SIMULATOR_RUNTIME / $DEVICE_KIND / $simulator_id" >> "$GITHUB_STEP_SUMMARY"
