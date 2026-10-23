@@ -32,12 +32,14 @@ App 使用本分支新增的 `POST /reader3/syncBookProgress`。**NAS 上的旧�
 
 GitHub Actions 工作流为 **Build iOS IPA**（`.github/workflows/ios.yml`）。推送修改 `ios/` 的分支会自动触发；合入默认分支后，也可在 Actions 页面手动 Run workflow。
 
-1. 打开对应工作流运行，等待原生模拟器测试和 Release 构建成功。
+1. 打开对应工作流运行，等待 Release 构建成功。按用户要求，云端工作流仅构建 IPA，不再运行模拟器测试。
 2. 在该次运行的 Artifacts 中下载 **Reader-unsigned-IPA**，解开外层 ZIP，得到 `Reader-unsigned.ipa`。
 3. 使用自己的 Apple ID / 签名证书，通过支持自签的安装工具签名后安装。此文件未经签名，不能直接点开安装，也不是 TestFlight 分发包。签名有效期取决于使用的账号和工具。
 4. App 中填写服务器地址，再用与电脑网页相同的账号登录。未开启账号模式的服务器可以留空账号。
 
 工作流只需要仓库 `contents: read`，不要求上传 Apple 密码或签名证书到 GitHub。构建产物保留 14 天。首次从 fork 运行 Actions 可能需要仓库所有者在 GitHub 中启用 Actions；额度和 macOS runner 可用性由 GitHub 账号决定。
+
+仓库 Releases 也可保存 IPA 和 SHA-256 校验文件。未经完整真机和 NAS 联调的版本应标记为预发布；草稿 Release 仅有写权限的仓库成员可见，发布后的下载权限由仓库可见性决定。
 
 HTTP 适用于自己控制的局域网；公网反代请使用系统信任的 HTTPS 证书。客户端没有跳过证书校验。局域网 NAS 地址通常只在同一局域网 / 可达的 VPN 内可用；公司和外出阅读应使用能访问 NAS 的地址。
 
