@@ -29,12 +29,10 @@ test.describe('Source import to reading against the real Rust server', () => {
     expect(created.ok()).toBeTruthy()
     const createdData = await created.json()
     expect(createdData.isSuccess).toBe(true)
+    expect((await (await request.get('/reader3/getUserInfo')).json()).data.secure).toBe(true)
 
     await page.goto('/#/')
-    if (!(await page.locator('#username').isVisible())) {
-      await openSettings(page)
-      await page.getByRole('button', { name: '登录 / 注册' }).click()
-    }
+    await expect(page.locator('#username')).toBeVisible()
     await page.locator('#username').fill(username)
     await page.locator('#password').fill(password)
     await page.getByRole('button', { name: '登 录' }).click()
