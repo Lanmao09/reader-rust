@@ -77,20 +77,22 @@ final class ReaderUITests: XCTestCase {
         try await fill(app.textFields["connection.username"], with: "e2ereader")
         let password = app.secureTextFields["connection.password"]
         password.tap()
-        for (index, character) in "e2epassword".enumerated() {
-            // Send to the focused keyboard without focusing the secure field again.
-            app.typeText(String(character))
-            let expectedCount = index + 1
-            let committed = NSPredicate { object, _ in
-                guard let field = object as? XCUIElement, let value = field.value as? String else { return false }
-                return value.count == expectedCount
-            }
-            try await wait(committed, on: password, message: "密码输入未保留第 \(expectedCount) 个字符")
-        }
+        // Submit to the already focused keyboard once. Verify the actual request
+        // at the server; an accessibility password mask is not the credential.
+        app.typeText("e2epassword")
         let connect = app.buttons["连接并同步书架"]
         if !connect.isHittable { app.swipeUp() }
         connect.tap()
-        try await wait(NSPredicate(format: "exists == false"), on: app.navigationBars["服务器与账号"], message: "连接失败：" + visibleText(app))
+        let loginDeadline = Date().addingTimeInterval(20)
+        var receivedLogin: [String: Any]?
+        while receivedLogin == nil && Date() < loginDeadline {
+            let observed = try await fixture("__state")
+            receivedLogin = observed["lastLogin"] as? [String: Any]
+            if receivedLogin == nil { try await Task.sleep(nanoseconds: 200_000_000) }
+        }
+        let credentialsArrived = receivedLogin?["usernameMatches"] as? Bool == true && receivedLogin?["passwordMatches"] as? Bool == true
+        try require(credentialsArrived, "测试服务未收到完整的登录凭证（仅记录匹配结果和长度）：\(receivedLogin ?? [:])")
+        try await wait(NSPredicate(format: "exists == false"), on: app.navigationBars["服务器与账号"], message: "连接失败：" + visibleText(app), timeout: 60)
         try openBook(app)
         try await expectChapter(1, app: app)
 

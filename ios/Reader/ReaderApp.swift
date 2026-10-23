@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct ReaderApp: App {
@@ -13,6 +14,7 @@ struct ReaderApp: App {
 struct BookshelfView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var phase
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showConnection = false
     @State private var selectedBook: ReaderBook?
     @State private var search = ""
@@ -55,7 +57,7 @@ struct BookshelfView: View {
                     }
                 }.padding(24).frame(maxWidth: 1100).frame(maxWidth: .infinity)
             }
-            .background(Color(red: 0.97, green: 0.96, blue: 0.93))
+            .background(colorScheme == .dark ? Color(uiColor: .systemGroupedBackground) : Color(red: 0.97, green: 0.96, blue: 0.93))
             .navigationTitle("阅间")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -131,6 +133,7 @@ struct ConnectionView: View {
                 if let error { Section { Text(error).foregroundStyle(.red).accessibilityIdentifier("connection.error") } }
                 Section {
                     Button {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                         connecting = true; error = nil
                         Task {
                             do {

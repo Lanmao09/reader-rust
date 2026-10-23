@@ -13,7 +13,9 @@ struct SecureEntry: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextField {
         let field = UITextField()
         field.placeholder = placeholder
+        field.text = text
         field.isSecureTextEntry = true
+        field.keyboardType = .asciiCapable
         field.textContentType = contentType
         field.autocapitalizationType = .none
         field.autocorrectionType = .no
@@ -28,13 +30,16 @@ struct SecureEntry: UIViewRepresentable {
         field.accessibilityIdentifier = identifier
         field.delegate = context.coordinator
         field.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
+        field.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingDidEnd)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return field
     }
 
     func updateUIView(_ field: UITextField, context: Context) {
         context.coordinator.parent = self
-        if field.text != text { field.text = text }
+        // An in-flight keyboard edit owns the text until editing ends. A form
+        // layout update must not replace it with an older binding snapshot.
+        if !field.isFirstResponder, field.text != text { field.text = text }
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {
