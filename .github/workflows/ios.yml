@@ -49,7 +49,9 @@ jobs:
           simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys,os; d=json.load(sys.stdin); print(next(x["udid"] for runtime,devices in d["devices"].items() if ".iOS-" in runtime for x in devices if x["name"].startswith(os.environ["DEVICE_KIND"])))')
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
       - name: Run native iOS tests
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p ios/build
           xcodebuild test -project ios/Reader.xcodeproj -scheme Reader \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
