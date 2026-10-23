@@ -17,12 +17,18 @@ final class ReaderUITests: XCTestCase {
     }
 
     @MainActor
-    private func fill(_ field: XCUIElement, with value: String) {
+    private func fill(_ field: XCUIElement, with value: String) async throws {
         field.tap()
         if let current = field.value as? String, current != field.placeholderValue {
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+            if !current.isEmpty {
+                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+            }
         }
-        field.typeText(value)
+        // Give SwiftUI and the simulator keyboard time to commit each keystroke.
+        // Sending a complete string at once can lose characters on a busy runner.
+        for character in value { field.typeText(String(character)) }
+        try await wait(NSPredicate(format: "value == %@", value), on: field,
+                       message: "字段输入不匹配：\(field.identifier)，实际值：\(String(describing: field.value))", timeout: 10)
     }
 
     @MainActor
@@ -67,11 +73,10 @@ final class ReaderUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         app.buttons["服务器与账号"].tap()
-        fill(app.textFields["connection.server"], with: server.absoluteString)
-        fill(app.textFields["connection.username"], with: "e2ereader")
-        try require(app.textFields["connection.username"].value as? String == "e2ereader", "账号输入与预期不符")
+        try await fill(app.textFields["connection.server"], with: server.absoluteString)
+        try await fill(app.textFields["connection.username"], with: "e2ereader")
         app.secureTextFields["connection.password"].tap()
-        app.secureTextFields["connection.password"].typeText("e2epassword")
+        for character in "e2epassword" { app.secureTextFields["connection.password"].typeText(String(character)) }
         let connect = app.buttons["连接并同步书架"]
         if !connect.isHittable { app.swipeUp() }
         connect.tap()
