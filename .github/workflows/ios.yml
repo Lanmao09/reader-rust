@@ -51,11 +51,36 @@ jobs:
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
       - name: Run native iOS tests
         run: |
+          mkdir -p ios/build
           xcodebuild test -project ios/Reader.xcodeproj -scheme Reader \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -parallel-testing-enabled NO \
             -derivedDataPath ios/.build -resultBundlePath ios/build/TestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee ios/build/native-test.log
+      - name: Publish actionable test failure diagnostics
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import json, re, subprocess
+          from pathlib import Path
+          def annotation(message):
+              message = str(message).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print('::error::' + message[:12000])
+          log = Path('ios/build/native-test.log')
+          if log.exists():
+              lines = [line for line in log.read_text(errors='replace').splitlines()
+                       if re.search(r'error:|XCTAssert|failed -|failed to|Testing failed|Test Case .*failed', line, re.I)]
+              for line in list(dict.fromkeys(lines))[-12:]:
+                  annotation(line)
+          bundle = Path('ios/build/TestResults.xcresult')
+          if bundle.exists():
+              result = subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', str(bundle)], capture_output=True, text=True)
+              if result.returncode == 0:
+                  Path('ios/build/TestSummary.json').write_text(result.stdout)
+                  summary = json.loads(result.stdout)
+                  for failure in summary.get('testFailures', []):
+                      annotation(json.dumps(failure, ensure_ascii=False))
+          PY
       - name: Build unsigned IPA for personal signing
         if: matrix.device == 'iPhone'
         run: bash ios/build-ipa.sh
@@ -86,6 +111,7 @@ jobs:
             ios/build/Reader-unsigned.ipa
             ios/build/Reader-unsigned.ipa.sha256
             ios/build/TestSummary.json
+            ios/build/native-test.log
           if-no-files-found: error
           retention-days: 14
       - name: Upload simulator results and UI screenshots

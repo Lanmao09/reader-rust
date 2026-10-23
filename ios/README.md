@@ -52,7 +52,7 @@ open ios/Reader.xcodeproj
 bash ios/build-ipa.sh
 ```
 
-在 Xcode 中选择 Reader scheme 和一个 iPhone 模拟器，执行 Test 可运行 `ReaderTests`。新增 Swift 文件后重新运行生成器。
+当前 Reader scheme 同时包含单元测试和实际 UI 操作测试。执行 Test 前，先在仓库根目录运行 `python3 tests/fixtures/reader_site.py --mobile-api --port 18998`，再选择 iPhone 或 iPad 模拟器。完整验收范围和独立网页测试命令见 [阅读流程验收说明](../tests/READING_WORKFLOW.md)。新增 Swift 文件后重新运行生成器。
 
 ## 真机验收
 

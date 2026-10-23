@@ -27,7 +27,7 @@ final class ReaderUITests: XCTestCase {
     @MainActor
     private func openBook(_ app: XCUIApplication) {
         let book = app.buttons["book:" + server.absoluteString + "/book/1"]
-        XCTAssertTrue(book.waitForExistence(timeout: 20))
+        XCTAssertTrue(book.waitForExistence(timeout: 20), "书架未出现：" + app.debugDescription.replacingOccurrences(of: "\n", with: " | "))
         book.tap()
         XCTAssertTrue(app.textViews["reader.body"].waitForExistence(timeout: 20))
     }
