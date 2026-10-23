@@ -20,7 +20,7 @@ test.describe('Source import to reading against the real Rust server', () => {
   })
   test.afterAll(() => fixture?.kill())
 
-  test('imports a source file, searches, shelves, reads, changes chapter and resumes on another client', async ({ page, request, browser, baseURL }) => {
+  test('imports a source file, searches, shelves, reads, changes chapter and resumes on another client', async ({ page, request, browser, baseURL }, testInfo) => {
     test.setTimeout(90_000)
     expect(['127.0.0.1', 'localhost']).toContain(new URL(baseURL!).hostname)
     const username = 'flow' + randomBytes(6).toString('hex')
@@ -62,10 +62,18 @@ test.describe('Source import to reading against the real Rust server', () => {
     await expect(page.locator('.chapter-content .chapter-title')).toContainText('第2章')
     await expect(page.locator('.chapter-text')).toContainText('第2章正文')
 
-    await page.locator('.reader-scroll-container').evaluate(el => { el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.4; el.dispatchEvent(new Event('scroll')) })
-    const uploaded = page.waitForResponse(r => r.url().endsWith('/syncBookProgress') && r.request().method() === 'POST')
+    const scroll = page.locator('.reader-scroll-container')
+    const distance = await scroll.evaluate(el => (el.scrollHeight - el.clientHeight) * 0.4)
+    await scroll.hover()
+    await page.mouse.wheel(0, distance)
+    await expect.poll(async () => scroll.evaluate(el => el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight))).toBeCloseTo(0.4, 1)
+    const uploaded = page.waitForResponse(r => r.url().endsWith('/syncBookProgress') && r.request().method() === 'POST' && r.request().postDataJSON().position > 3000)
     await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange')) })
-    expect((await (await uploaded).json()).data.accepted).toBe(true)
+    const progress = (await (await uploaded).json()).data
+    expect(progress.accepted).toBe(true)
+    expect(progress.book.durChapterPos).toBeGreaterThan(3000)
+    expect(progress.book.durChapterPos).toBeLessThan(5000)
+    await testInfo.attach('desktop-reading', { body: await page.screenshot(), contentType: 'image/png' })
 
     const mobileLogin = await request.post('/reader3/login', { data: { username, password, isLogin: true } })
     const mobileToken = (await mobileLogin.json()).data.accessToken
@@ -76,6 +84,8 @@ test.describe('Source import to reading against the real Rust server', () => {
     await mobilePage.locator('.book-card').filter({ hasText: '书源全流程测试小说' }).locator('.book-name').click()
     await expect(mobilePage.locator('.chapter-content .chapter-title')).toContainText('第2章')
     await expect(mobilePage.locator('.chapter-text')).toContainText('第2章正文')
+    await expect.poll(async () => mobilePage.locator('.reader-scroll-container').evaluate(el => el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight))).toBeCloseTo(progress.book.durChapterPos / 10000, 1)
+    await testInfo.attach('mobile-browser-reading', { body: await mobilePage.screenshot(), contentType: 'image/png' })
     await mobile.close()
     const stats = await (await request.get(site + '/__state')).json()
     expect(stats.requests['/search']).toBeGreaterThan(0)

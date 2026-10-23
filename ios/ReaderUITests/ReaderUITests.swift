@@ -98,6 +98,12 @@ final class ReaderUITests: XCTestCase {
         _ = try await fixture("__control", body: ["index": 3, "position": 5000])
         app.activate()
         expectChapter(4, app: app)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "50%")).firstMatch.waitForExistence(timeout: 10))
+        app.textViews["reader.body"].swipeUp()
+        expectation(for: NSPredicate(format: "label == %@", "已同步到网页"), evaluatedWith: app.staticTexts["reader.syncStatus"])
+        waitForExpectations(timeout: 20)
+        let scrolled = try await fixture("__state")
+        XCTAssertGreaterThan((scrolled["book"] as? [String: Any])?["durChapterPos"] as? Int ?? 0, 5000)
         _ = try await fixture("__control", body: ["index": 5, "position": 3000])
         app.buttons["上一章"].tap()
         let resume = app.buttons["接着另一设备读"]

@@ -10,15 +10,14 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ios-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     name: iOS (${{ matrix.device }})
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 30
+    concurrency:
+      group: ios-${{ github.ref }}-${{ matrix.device }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +110,6 @@ jobs:
             ios/build/Reader-unsigned.ipa
             ios/build/Reader-unsigned.ipa.sha256
             ios/build/TestSummary.json
-            ios/build/native-test.log
           if-no-files-found: error
           retention-days: 14
       - name: Upload simulator results and UI screenshots
@@ -122,4 +120,5 @@ jobs:
           path: |
             ios/build/TestResults.xcresult
             ios/build/TestSummary.json
+            ios/build/native-test.log
           if-no-files-found: ignore
