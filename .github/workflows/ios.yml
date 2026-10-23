@@ -46,7 +46,7 @@ jobs:
           summary = json.loads(Path('ios/build/TestSummary.json').read_text())
           passed = summary['passedTests']
           failed = summary['failedTests']
-          assert passed >= 5 and failed == 0, summary
+          assert passed >= 6 and failed == 0, summary
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
               report.write(f'Native iOS tests: **{passed} passed, {failed} failed**.\n\n')
           PY
