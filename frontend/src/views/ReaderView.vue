@@ -825,7 +825,7 @@ function buildServerSavedPosition(): SavedReadingPosition | null {
   if (!store.book) return null
   if (store.book.durChapterIndex !== store.currentIndex) return null
   const rawPos = typeof store.book.durChapterPos === 'number' ? store.book.durChapterPos : 0
-  const progress = rawPos > 1 ? rawPos / 10000 : rawPos
+  const progress = Number.isInteger(rawPos) ? rawPos / 10000 : rawPos
   return {
     chapterIndex: store.currentIndex,
     progress: Math.max(0, Math.min(1, progress || 0)),

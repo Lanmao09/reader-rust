@@ -13,6 +13,7 @@ final class ReaderTests: XCTestCase {
     func testProgressUsesWebReadersScale() {
         XCTAssertEqual(ProgressPosition.encode(0.375), 3750)
         XCTAssertEqual(ProgressPosition.decode(3750), 0.375, accuracy: 0.00001)
+        XCTAssertEqual(ProgressPosition.decode(1), 0.0001, accuracy: 0.00001)
         XCTAssertEqual(ProgressPosition.encode(-1), 0)
         XCTAssertEqual(ProgressPosition.encode(2), 10000)
         XCTAssertEqual(ProgressPosition.encode(.nan), 0)

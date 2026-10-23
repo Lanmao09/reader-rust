@@ -31,7 +31,7 @@ enum ProgressPosition {
     }
     // reader-rust's web reader uses a 0...10000 chapter fraction, not pixels.
     static func decode(_ position: Int) -> Double {
-        min(1, max(0, position > 1 ? Double(position) / 10_000 : Double(position)))
+        min(1, max(0, Double(position) / 10_000))
     }
 }
 

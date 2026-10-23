@@ -79,6 +79,15 @@ describe('reader local txt chapters', () => {
     expect(store.book?.durChapterTime).toBe(200)
   })
 
+  it('restores the first scaled position near the start instead of jumping to the chapter end', async () => {
+    const store = useReaderStore()
+    store.book = { name: '测试书', author: '作者', bookUrl: 'book1', origin: 'local-txt', durChapterIndex: 0, durChapterPos: 1 }
+    store.chapters = [{ index: 0, url: 'chapter0', title: '第一章' }]
+    vi.mocked(getBookContent).mockResolvedValue('测试正文')
+    await store.loadChapter(0)
+    expect(store.chapterScrollProgress).toBe(0.0001)
+  })
+
   it('retains both positions on a conflict and waits for an explicit decision', async () => {
     const store = useReaderStore()
     store.book = { name: '测试书', author: '作者', bookUrl: 'book1', origin: 'source' }

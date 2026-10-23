@@ -379,7 +379,7 @@ export const useReaderStore = defineStore('reader', () => {
 
   function decodeServerProgress(position?: number | null) {
     if (typeof position !== 'number' || Number.isNaN(position)) return 0
-    const normalized = position > 1 ? position / SERVER_PROGRESS_SCALE : position
+    const normalized = Number.isInteger(position) ? position / SERVER_PROGRESS_SCALE : position
     return Math.max(0, Math.min(1, normalized))
   }
 
