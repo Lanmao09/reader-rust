@@ -64,6 +64,28 @@ final class ReaderTests: XCTestCase {
         XCTAssertFalse(result.accepted)
         XCTAssertEqual(result.book.chapterIndex, 5)
     }
+
+    @MainActor
+    func testIncompleteTOCDoesNotMoveSavedProgressBackwards() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockProtocol.self]
+        let connection = ServerConnection(baseURL: URL(string: "https://reader.example.com")!, username: "reader", accessToken: "test-token", secureKey: "")
+        let client = ReaderAPI(connection: connection, session: URLSession(configuration: configuration))
+        MockProtocol.handler = { request in
+            if request.url!.path.hasSuffix("getShelfBook") {
+                return Data(#"{"isSuccess":true,"data":{"name":"示例","author":"作者","bookUrl":"book1","origin":"source","durChapterIndex":12,"durChapterPos":3500,"durChapterTime":123}}"#.utf8)
+            }
+            XCTAssertTrue(request.url!.path.hasSuffix("getChapterList"))
+            return Data(#"{"isSuccess":true,"data":[{"title":"第一章","url":"chapter0","index":0}]}"#.utf8)
+        }
+        let book = ReaderBook(name: "示例", author: "作者", bookUrl: "book1", origin: "source", durChapterIndex: 12)
+        let session = ReaderSession(book: book, api: client, library: LocalLibrary(identity: UUID().uuidString))
+        await session.open()
+        XCTAssertEqual(session.index, 12)
+        XCTAssertEqual(session.fraction, 0.35, accuracy: 0.0001)
+        XCTAssertNotNil(session.error)
+        XCTAssertFalse(session.loading)
+    }
 }
 
 private final class MockProtocol: URLProtocol {

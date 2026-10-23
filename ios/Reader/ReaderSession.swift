@@ -44,7 +44,13 @@ final class ReaderSession: ObservableObject {
             chapters = await library.read("toc:" + book.bookUrl, as: [ReaderChapter].self) ?? []
             if chapters.isEmpty { self.error = "尚无离线目录，请联网打开一次这本书。" }
         }
-        index = min(max(0, index), max(0, chapters.count - 1))
+        // A paginated TOC can still be filling on the server. Never move a saved
+        // position backwards just because the current response is incomplete.
+        guard chapters.indices.contains(index) else {
+            loading = false
+            error = "当前目录尚未包含已保存的章节。请稍后联网重试，原阅读位置已保留。"
+            return
+        }
         await loadContent()
         if dirty && conflict == nil { await flush() }
     }
@@ -153,7 +159,7 @@ final class ReaderSession: ObservableObject {
     private func adopt(_ latest: ReaderBook) async {
         let previous = index
         book = latest; revision = latest.revision
-        index = min(latest.chapterIndex, max(0, chapters.count - 1)); fraction = latest.fraction
+        index = latest.chapterIndex; fraction = latest.fraction
         if previous != index { await loadContent() }
         syncStatus = "已接续另一设备的进度"
     }

@@ -49,7 +49,7 @@ struct ReaderView: View {
                     VStack(spacing: 16) {
                         Image(systemName: "book.closed").font(.largeTitle)
                         Text(error).font(.callout).multilineTextAlignment(.center)
-                        Button("重试") { Task { await session.loadContent() } }.buttonStyle(.bordered)
+                        Button("重试") { Task { await session.open() } }.buttonStyle(.bordered)
                     }.padding(30).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)).padding(24)
                 }
             }
