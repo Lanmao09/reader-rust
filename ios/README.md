@@ -30,14 +30,14 @@ App 使用本分支新增的 `POST /reader3/syncBookProgress`。**NAS 上的旧�
 
 ## 获取可自签 IPA
 
-GitHub Actions 工作流为 **Build iOS IPA**（`.github/workflows/ios.yml`）。推送修改 `ios/` 的分支会自动触发；合入默认分支后，也可在 Actions 页面手动 Run workflow。
+GitHub Actions 工作流为 **Build iOS IPA**（`.github/workflows/ios.yml`）。当前推送 `codex/ios-reader` 分支中 `ios/` 的修改会自动触发；合入默认分支后，也可在 Actions 页面手动 Run workflow。
 
 1. 打开对应工作流运行，等待 Release 构建成功。按用户要求，云端工作流仅构建 IPA，不再运行模拟器测试。
-2. 在该次运行的 Artifacts 中下载 **Reader-unsigned-IPA**，解开外层 ZIP，得到 `Reader-unsigned.ipa`。
+2. 在仓库 Releases 中打开 **阅间 iOS v0.1.0（自签 IPA）** 草稿，直接下载 `Reader-unsigned.ipa`。需登录有写权限的 GitHub 账号；工作流不会将 IPA 上传为公开的 Actions artifact。
 3. 使用自己的 Apple ID / 签名证书，通过支持自签的安装工具签名后安装。此文件未经签名，不能直接点开安装，也不是 TestFlight 分发包。签名有效期取决于使用的账号和工具。
 4. App 中填写服务器地址，再用与电脑网页相同的账号登录。未开启账号模式的服务器可以留空账号。
 
-工作流只需要仓库 `contents: read`，不要求上传 Apple 密码或签名证书到 GitHub。构建产物保留 14 天。首次从 fork 运行 Actions 可能需要仓库所有者在 GitHub 中启用 Actions；额度和 macOS runner 可用性由 GitHub 账号决定。
+构建任务通过 GitHub 自动提供的 token 获取仓库 `contents: write` 权限，只向草稿 Release 上传 IPA 和校验文件，不要求上传 Apple 密码或签名证书到 GitHub。若同名 Release 已发布，工作流拒绝上传，避免在公开仓库中意外公开 IPA。首次从 fork 运行 Actions 可能需要仓库所有者在 GitHub 中启用 Actions；额度和 macOS runner 可用性由 GitHub 账号决定。
 
 仓库 Releases 也可保存 IPA 和 SHA-256 校验文件。未经完整真机和 NAS 联调的版本应标记为预发布；草稿 Release 仅有写权限的仓库成员可见，发布后的下载权限由仓库可见性决定。
 
