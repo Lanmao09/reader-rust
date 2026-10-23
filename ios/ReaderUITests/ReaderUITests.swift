@@ -67,19 +67,33 @@ final class ReaderUITests: XCTestCase {
     }
 
     @MainActor
+    private func enterPasswordWithKeyboard(_ app: XCUIApplication) throws {
+        app.secureTextFields["connection.password"].tap()
+        let keyboard = app.keyboards.firstMatch
+        try require(keyboard.waitForExistence(timeout: 20), "屏幕键盘没有出现")
+        for character in "e2epassword" {
+            let key = keyboard.keys[String(character)]
+            if !key.exists {
+                let toggle = keyboard.keys.matching(NSPredicate(format: "identifier == %@ OR label IN %@", "more", ["123", "ABC", "Numbers", "Letters"] as NSArray)).firstMatch
+                try require(toggle.waitForExistence(timeout: 5), "键盘没有字母/数字切换键：" + keyboard.debugDescription)
+                toggle.tap()
+            }
+            try require(key.waitForExistence(timeout: 5), "键盘没有测试所需的按键：\(character)")
+            key.tap()
+        }
+    }
+
+    @MainActor
     func testLoginReadSettingsOfflineRestartAndProgressHandoff() async throws {
         continueAfterFailure = false
         _ = try await fixture("__control", body: ["offline": false, "index": 0, "position": 0])
         let app = XCUIApplication()
+        app.launchEnvironment["READER_UI_DIAGNOSTICS"] = "1"
         app.launch()
         app.buttons["服务器与账号"].tap()
         try await fill(app.textFields["connection.server"], with: server.absoluteString)
         try await fill(app.textFields["connection.username"], with: "e2ereader")
-        let password = app.secureTextFields["connection.password"]
-        password.tap()
-        // Submit to the already focused keyboard once. Verify the actual request
-        // at the server; an accessibility password mask is not the credential.
-        app.typeText("e2epassword")
+        try enterPasswordWithKeyboard(app)
         let connect = app.buttons["连接并同步书架"]
         if !connect.isHittable { app.swipeUp() }
         connect.tap()
