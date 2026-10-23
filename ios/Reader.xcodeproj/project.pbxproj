@@ -106,6 +106,16 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "D22538B14D077E0661A798BE";
 		};
+		"4861F461E1AE5A833960C444" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "ReaderUITests.swift";
+			"sourceTree" = "<group>";
+		};
+		"C6CD35CFDD77B670CAA82EEC" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "4861F461E1AE5A833960C444";
+		};
 		"3685E330EC5277A9DD5661C6" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "folder.assetcatalog";
@@ -130,6 +140,12 @@
 			"path" = "ReaderTests";
 			"sourceTree" = "<group>";
 		};
+		"DEAB7715E7D702D116E368DE" = {
+			"isa" = "PBXGroup";
+			"children" = ("4861F461E1AE5A833960C444",);
+			"path" = "ReaderUITests";
+			"sourceTree" = "<group>";
+		};
 		"C2B6AF95E5FB6AF04547C8EA" = {
 			"isa" = "PBXFileReference";
 			"explicitFileType" = "wrapper.application";
@@ -142,15 +158,21 @@
 			"path" = "ReaderTests.xctest";
 			"sourceTree" = "BUILT_PRODUCTS_DIR";
 		};
+		"039A5282A3397AF2C5BFC649" = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.cfbundle";
+			"path" = "ReaderUITests.xctest";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+		};
 		"FE0A091FDBFB3E9C31B7A1BD" = {
 			"isa" = "PBXGroup";
-			"children" = ("C2B6AF95E5FB6AF04547C8EA", "9546C13FD73DB51D3B708BEE",);
+			"children" = ("C2B6AF95E5FB6AF04547C8EA", "9546C13FD73DB51D3B708BEE", "039A5282A3397AF2C5BFC649",);
 			"name" = "Products";
 			"sourceTree" = "<group>";
 		};
 		"62BCE9422FF2D14F69AB80A1" = {
 			"isa" = "PBXGroup";
-			"children" = ("A7D8CE70846932FEE851CAD6", "788492B1BB25053FB57A79AB", "FE0A091FDBFB3E9C31B7A1BD",);
+			"children" = ("A7D8CE70846932FEE851CAD6", "788492B1BB25053FB57A79AB", "DEAB7715E7D702D116E368DE", "FE0A091FDBFB3E9C31B7A1BD",);
 			"sourceTree" = "<group>";
 		};
 		"6805EC6AFDAFDBE18E2FF355" = {
@@ -182,6 +204,18 @@
 			"runOnlyForDeploymentPostprocessing" = "0";
 		};
 		"D6C04E321AC1AC815067AD02" = {
+			"isa" = "PBXFrameworksBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = ();
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		"AABAA708B6FFD9473B789668" = {
+			"isa" = "PBXSourcesBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = ("C6CD35CFDD77B670CAA82EEC",);
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		"E79B4D6CB1F40CE1BC5FF911" = {
 			"isa" = "PBXFrameworksBuildPhase";
 			"buildActionMask" = "2147483647";
 			"files" = ();
@@ -293,6 +327,58 @@
 			"defaultConfigurationIsVisible" = "0";
 			"defaultConfigurationName" = "Release";
 		};
+		"3211EEA1644E9AAFA648AB61" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Debug";
+			"buildSettings" = {
+				"IPHONEOS_DEPLOYMENT_TARGET" = "16.0";
+				"SWIFT_VERSION" = "5.0";
+				"SDKROOT" = "iphoneos";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"CLANG_ENABLE_OBJC_ARC" = "YES";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
+				"SUPPORTS_MACCATALYST" = "NO";
+				"PRODUCT_NAME" = "ReaderUITests";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "org.reader-rust.reader.uitests";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"INFOPLIST_FILE" = "ReaderUITests/Info.plist";
+				"TEST_TARGET_NAME" = "Reader";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
+				"DEBUG_INFORMATION_FORMAT" = "dwarf";
+				"ENABLE_TESTABILITY" = "YES";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "DEBUG";
+			};
+		};
+		"3C29AA6C120D4EC323A661C6" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Release";
+			"buildSettings" = {
+				"IPHONEOS_DEPLOYMENT_TARGET" = "16.0";
+				"SWIFT_VERSION" = "5.0";
+				"SDKROOT" = "iphoneos";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"CLANG_ENABLE_OBJC_ARC" = "YES";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
+				"SUPPORTS_MACCATALYST" = "NO";
+				"PRODUCT_NAME" = "ReaderUITests";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "org.reader-rust.reader.uitests";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"INFOPLIST_FILE" = "ReaderUITests/Info.plist";
+				"TEST_TARGET_NAME" = "Reader";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+				"DEBUG_INFORMATION_FORMAT" = "dwarf-with-dsym";
+			};
+		};
+		"63959B7B87D56CE0C5420299" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = ("3211EEA1644E9AAFA648AB61", "3C29AA6C120D4EC323A661C6",);
+			"defaultConfigurationIsVisible" = "0";
+			"defaultConfigurationName" = "Release";
+		};
 		"858D0932EEACC1122B4B1EF1" = {
 			"isa" = "PBXContainerItemProxy";
 			"containerPortal" = "F6F4DA8D93E88A08220E03B7";
@@ -326,6 +412,17 @@
 			"productName" = "ReaderTests";
 			"productReference" = "9546C13FD73DB51D3B708BEE";
 			"productType" = "com.apple.product-type.bundle.unit-test";
+		};
+		"8D5093D2C263EEDEAE2010BE" = {
+			"isa" = "PBXNativeTarget";
+			"buildConfigurationList" = "63959B7B87D56CE0C5420299";
+			"buildPhases" = ("AABAA708B6FFD9473B789668", "E79B4D6CB1F40CE1BC5FF911",);
+			"buildRules" = ();
+			"dependencies" = ("8BC62B80562684797FDF3D7A",);
+			"name" = "ReaderUITests";
+			"productName" = "ReaderUITests";
+			"productReference" = "039A5282A3397AF2C5BFC649";
+			"productType" = "com.apple.product-type.bundle.ui-testing";
 		};
 		"BFD315016DE16320F7E2120C" = {
 			"isa" = "XCBuildConfiguration";
@@ -374,6 +471,14 @@
 			"attributes" = {
 				"LastUpgradeCheck" = "1600";
 				"BuildIndependentTargetsInParallel" = "YES";
+				"TargetAttributes" = {
+					"39FDEC1194D94212B871A28B" = {
+						"TestTargetID" = "FC4A695F02A8A53A129DCB9A";
+					};
+					"8D5093D2C263EEDEAE2010BE" = {
+						"TestTargetID" = "FC4A695F02A8A53A129DCB9A";
+					};
+				};
 			};
 			"buildConfigurationList" = "8A7B7B41EC8EE64FC61CAC5C";
 			"compatibilityVersion" = "Xcode 14.0";
@@ -384,7 +489,7 @@
 			"productRefGroup" = "FE0A091FDBFB3E9C31B7A1BD";
 			"projectDirPath" = "";
 			"projectRoot" = "";
-			"targets" = ("FC4A695F02A8A53A129DCB9A", "39FDEC1194D94212B871A28B",);
+			"targets" = ("FC4A695F02A8A53A129DCB9A", "39FDEC1194D94212B871A28B", "8D5093D2C263EEDEAE2010BE",);
 		};
 	};
 	"rootObject" = "F6F4DA8D93E88A08220E03B7";

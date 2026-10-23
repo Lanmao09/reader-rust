@@ -43,21 +43,26 @@ def source_group(folder):
 
 app_files, app_builds = source_group("Reader")
 test_files, test_builds = source_group("ReaderTests")
+ui_files, ui_builds = source_group("ReaderUITests")
 assets = add("assets", "PBXFileReference", lastKnownFileType="folder.assetcatalog", path="Assets.xcassets", sourceTree="<group>")
 app_files.append(assets)
 plist = add("plist", "PBXFileReference", lastKnownFileType="text.plist.xml", path="Info.plist", sourceTree="<group>")
 app_files.append(plist)
 app_group = add("AppGroup", "PBXGroup", children=app_files, path="Reader", sourceTree="<group>")
 tests_group = add("TestsGroup", "PBXGroup", children=test_files, path="ReaderTests", sourceTree="<group>")
+ui_group = add("UITestsGroup", "PBXGroup", children=ui_files, path="ReaderUITests", sourceTree="<group>")
 app_product = add("AppProduct", "PBXFileReference", explicitFileType="wrapper.application", path="Reader.app", sourceTree="BUILT_PRODUCTS_DIR")
 test_product = add("TestsProduct", "PBXFileReference", explicitFileType="wrapper.cfbundle", path="ReaderTests.xctest", sourceTree="BUILT_PRODUCTS_DIR")
-products = add("Products", "PBXGroup", children=[app_product, test_product], name="Products", sourceTree="<group>")
-main = add("Main", "PBXGroup", children=[app_group, tests_group, products], sourceTree="<group>")
+ui_product = add("UITestsProduct", "PBXFileReference", explicitFileType="wrapper.cfbundle", path="ReaderUITests.xctest", sourceTree="BUILT_PRODUCTS_DIR")
+products = add("Products", "PBXGroup", children=[app_product, test_product, ui_product], name="Products", sourceTree="<group>")
+main = add("Main", "PBXGroup", children=[app_group, tests_group, ui_group, products], sourceTree="<group>")
 app_phases = [add("AppSources", "PBXSourcesBuildPhase", buildActionMask="2147483647", files=app_builds, runOnlyForDeploymentPostprocessing="0"),
               add("AppFrameworks", "PBXFrameworksBuildPhase", buildActionMask="2147483647", files=[], runOnlyForDeploymentPostprocessing="0"),
               add("AppResources", "PBXResourcesBuildPhase", buildActionMask="2147483647", files=[add("AssetsBuild", "PBXBuildFile", fileRef=assets)], runOnlyForDeploymentPostprocessing="0")]
 test_phases = [add("TestSources", "PBXSourcesBuildPhase", buildActionMask="2147483647", files=test_builds, runOnlyForDeploymentPostprocessing="0"),
                add("TestFrameworks", "PBXFrameworksBuildPhase", buildActionMask="2147483647", files=[], runOnlyForDeploymentPostprocessing="0")]
+ui_phases = [add("UISources", "PBXSourcesBuildPhase", buildActionMask="2147483647", files=ui_builds, runOnlyForDeploymentPostprocessing="0"),
+             add("UIFrameworks", "PBXFrameworksBuildPhase", buildActionMask="2147483647", files=[], runOnlyForDeploymentPostprocessing="0")]
 base = {"IPHONEOS_DEPLOYMENT_TARGET": "16.0", "SWIFT_VERSION": "5.0", "SDKROOT": "iphoneos", "CLANG_ENABLE_MODULES": "YES",
         "CLANG_ENABLE_OBJC_ARC": "YES", "TARGETED_DEVICE_FAMILY": "1,2", "CODE_SIGN_STYLE": "Automatic",
         "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator", "SUPPORTS_MACCATALYST": "NO"}
@@ -66,16 +71,21 @@ app_config = settings("App", {**base, "PRODUCT_NAME": "Reader", "PRODUCT_BUNDLE_
                               "MARKETING_VERSION": "0.1.0", "CURRENT_PROJECT_VERSION": "1"})
 test_config = settings("Tests", {**base, "PRODUCT_NAME": "ReaderTests", "PRODUCT_BUNDLE_IDENTIFIER": "org.reader-rust.reader.tests",
                                  "GENERATE_INFOPLIST_FILE": "YES", "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Reader.app/Reader", "BUNDLE_LOADER": "$(TEST_HOST)"})
+ui_config = settings("UITests", {**base, "PRODUCT_NAME": "ReaderUITests", "PRODUCT_BUNDLE_IDENTIFIER": "org.reader-rust.reader.uitests",
+                               "GENERATE_INFOPLIST_FILE": "YES", "INFOPLIST_FILE": "ReaderUITests/Info.plist", "TEST_TARGET_NAME": "Reader"})
 proxy = add("TestProxy", "PBXContainerItemProxy", containerPortal=identifier("Project"), proxyType="1", remoteGlobalIDString=identifier("App"), remoteInfo="Reader")
 dependency = add("TestDependency", "PBXTargetDependency", target=identifier("App"), targetProxy=proxy)
 app = add("App", "PBXNativeTarget", buildConfigurationList=app_config, buildPhases=app_phases, buildRules=[], dependencies=[],
           name="Reader", productName="Reader", productReference=app_product, productType="com.apple.product-type.application")
 tests = add("Tests", "PBXNativeTarget", buildConfigurationList=test_config, buildPhases=test_phases, buildRules=[], dependencies=[dependency],
             name="ReaderTests", productName="ReaderTests", productReference=test_product, productType="com.apple.product-type.bundle.unit-test")
-project = add("Project", "PBXProject", attributes={"LastUpgradeCheck": "1600", "BuildIndependentTargetsInParallel": "YES"},
+ui = add("UITests", "PBXNativeTarget", buildConfigurationList=ui_config, buildPhases=ui_phases, buildRules=[], dependencies=[dependency],
+         name="ReaderUITests", productName="ReaderUITests", productReference=ui_product, productType="com.apple.product-type.bundle.ui-testing")
+project = add("Project", "PBXProject", attributes={"LastUpgradeCheck": "1600", "BuildIndependentTargetsInParallel": "YES",
+              "TargetAttributes": {tests: {"TestTargetID": app}, ui: {"TestTargetID": app}}},
               buildConfigurationList=settings("Project", base), compatibilityVersion="Xcode 14.0", developmentRegion="en",
               hasScannedForEncodings="0", knownRegions=["en", "zh-Hans", "Base"], mainGroup=main, productRefGroup=products,
-              projectDirPath="", projectRoot="", targets=[app, tests])
+              projectDirPath="", projectRoot="", targets=[app, tests, ui])
 
 
 def serialize(value, depth=0):
@@ -104,7 +114,7 @@ def reference(target, name, extension):
   <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">{reference(app, "Reader", "app")}</BuildActionEntry>
  </BuildActionEntries></BuildAction>
  <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES">
-  <Testables><TestableReference skipped="NO" parallelizable="NO">{reference(tests, "ReaderTests", "xctest")}</TestableReference></Testables>
+  <Testables><TestableReference skipped="NO" parallelizable="NO">{reference(tests, "ReaderTests", "xctest")}</TestableReference><TestableReference skipped="NO" parallelizable="NO">{reference(ui, "ReaderUITests", "xctest")}</TestableReference></Testables>
  </TestAction>
  <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0">{reference(app, "Reader", "app")}</BuildableProductRunnable></LaunchAction>
  <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"><BuildableProductRunnable runnableDebuggingMode="0">{reference(app, "Reader", "app")}</BuildableProductRunnable></ProfileAction>

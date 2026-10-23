@@ -3,9 +3,9 @@ name: Build iOS IPA
 on:
   workflow_dispatch:
   push:
-    paths: ['ios/**', '.github/workflows/ios.yml']
+    paths: ['ios/**', 'tests/fixtures/reader_site.py', '.github/workflows/ios.yml']
   pull_request:
-    paths: ['ios/**', '.github/workflows/ios.yml']
+    paths: ['ios/**', 'tests/fixtures/reader_site.py', '.github/workflows/ios.yml']
 
 permissions:
   contents: read
@@ -16,27 +16,50 @@ concurrency:
 
 jobs:
   build:
+    name: iOS (${{ matrix.device }})
     runs-on: macos-15
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iPhone, iPad]
     steps:
       - uses: actions/checkout@v4
       - name: Generate Xcode project
         run: python3 ios/generate_project.py
-      - name: Select an installed iPhone simulator
+      - name: Start controlled API fixture for native UI tests
+        run: |
+          python3 tests/fixtures/reader_site.py --mobile-api --port 18998 > /tmp/reader-ui-fixture.log 2>&1 &
+          python3 - <<'PY'
+          import time, urllib.request
+          for attempt in range(50):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:18998/__state', timeout=1).close()
+                  break
+              except OSError:
+                  time.sleep(0.1)
+          else:
+              raise RuntimeError('UI fixture failed to start')
+          PY
+      - name: Select an installed simulator
         id: simulator
         shell: bash
+        env:
+          DEVICE_KIND: ${{ matrix.device }}
         run: |
-          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for runtime,devices in d["devices"].items() if ".iOS-" in runtime for x in devices if x["name"].startswith("iPhone")))')
+          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys,os; d=json.load(sys.stdin); print(next(x["udid"] for runtime,devices in d["devices"].items() if ".iOS-" in runtime for x in devices if x["name"].startswith(os.environ["DEVICE_KIND"])))')
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
       - name: Run native iOS tests
         run: |
           xcodebuild test -project ios/Reader.xcodeproj -scheme Reader \
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -parallel-testing-enabled NO \
             -derivedDataPath ios/.build -resultBundlePath ios/build/TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
       - name: Build unsigned IPA for personal signing
+        if: matrix.device == 'iPhone'
         run: bash ios/build-ipa.sh
-      - name: Verify executed tests and record IPA checksum
+      - name: Verify unit and UI tests executed
         shell: bash
         run: |
           xcrun xcresulttool get test-results summary --path ios/build/TestResults.xcresult > ios/build/TestSummary.json
@@ -46,13 +69,17 @@ jobs:
           summary = json.loads(Path('ios/build/TestSummary.json').read_text())
           passed = summary['passedTests']
           failed = summary['failedTests']
-          assert passed >= 6 and failed == 0, summary
+          assert passed >= 7 and failed == 0, summary
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
               report.write(f'Native iOS tests: **{passed} passed, {failed} failed**.\n\n')
           PY
+      - name: Record IPA checksum
+        if: matrix.device == 'iPhone'
+        run: |
           shasum -a 256 ios/build/Reader-unsigned.ipa > ios/build/Reader-unsigned.ipa.sha256
           cat ios/build/Reader-unsigned.ipa.sha256 >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        if: matrix.device == 'iPhone'
         with:
           name: Reader-unsigned-IPA
           path: |
@@ -61,10 +88,12 @@ jobs:
             ios/build/TestSummary.json
           if-no-files-found: error
           retention-days: 14
-      - name: Upload test results
-        if: failure()
+      - name: Upload simulator results and UI screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: iOS-test-results
-          path: ios/build/TestResults.xcresult
+          name: iOS-test-results-${{ matrix.device }}
+          path: |
+            ios/build/TestResults.xcresult
+            ios/build/TestSummary.json
           if-no-files-found: ignore

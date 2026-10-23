@@ -28,6 +28,7 @@ final class ReaderSession: ObservableObject {
     func open() async {
         do {
             let latest = try await api.book(book.bookUrl)
+            try await library.rememberBook(latest)
             book = latest; revision = latest.revision; index = latest.chapterIndex; fraction = latest.fraction
             syncStatus = "已读取云端进度"
         } catch { syncStatus = "离线阅读 · 联网后同步" }
@@ -122,6 +123,9 @@ final class ReaderSession: ObservableObject {
                 conflict = result.book; syncStatus = "另一设备已更新进度"; return
             }
             revision = result.book.revision; book = result.book
+            // A successful upload must also remain resumable after process death
+            // without requiring a return to the bookshelf or a network connection.
+            try await library.rememberBook(result.book)
             if generation == sentGeneration {
                 dirty = false
                 try await library.acknowledge(sent)
@@ -157,6 +161,8 @@ final class ReaderSession: ObservableObject {
         await flush()
     }
     private func adopt(_ latest: ReaderBook) async {
+        do { try await library.rememberBook(latest) }
+        catch { self.error = "本机进度保存失败：\(error.localizedDescription)" }
         let previous = index
         book = latest; revision = latest.revision
         index = latest.chapterIndex; fraction = latest.fraction

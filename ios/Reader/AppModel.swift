@@ -46,7 +46,10 @@ final class AppModel: ObservableObject {
             var conflicts = 0
             for progress in await library.pending().values {
                 let result = try await api.save(progress)
-                if result.accepted { try await library.acknowledge(progress) } else { conflicts += 1 }
+                if result.accepted {
+                    try await library.rememberBook(result.book)
+                    try await library.acknowledge(progress)
+                } else { conflicts += 1 }
             }
             books = try await api.bookshelf()
             try await library.write(books, for: "bookshelf")

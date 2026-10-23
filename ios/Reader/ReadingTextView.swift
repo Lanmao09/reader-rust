@@ -42,6 +42,7 @@ struct ReadingTextView: UIViewRepresentable {
         tap.delegate = context.coordinator
         view.addGestureRecognizer(tap)
         view.accessibilityLabel = "章节正文"
+        view.accessibilityIdentifier = "reader.body"
         return view
     }
     func updateUIView(_ view: UITextView, context: Context) {

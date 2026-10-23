@@ -26,6 +26,12 @@ actor LocalLibrary {
         try excluded.setResourceValues(values)
     }
     func pending() -> [String: ProgressWrite] { read("pending", as: [String: ProgressWrite].self) ?? [:] }
+    func rememberBook(_ book: ReaderBook) throws {
+        var books = read("bookshelf", as: [ReaderBook].self) ?? []
+        if let index = books.firstIndex(where: { $0.bookUrl == book.bookUrl }) { books[index] = book }
+        else { books.append(book) }
+        try write(books, for: "bookshelf")
+    }
     func enqueue(_ progress: ProgressWrite) throws {
         var all = pending()
         all[progress.bookUrl] = progress

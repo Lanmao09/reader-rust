@@ -73,7 +73,7 @@ struct ReaderView: View {
                         Spacer()
                         Button { Task { await session.jump(to: session.index + 1) } } label: { Image(systemName: "chevron.right") }.disabled(session.index >= session.chapters.count - 1 || session.loading).accessibilityLabel("下一章")
                     }.padding(.vertical, 5)
-                    Text(session.syncStatus).font(.caption2).foregroundStyle(.secondary)
+                    Text(session.syncStatus).font(.caption2).foregroundStyle(.secondary).accessibilityIdentifier("reader.syncStatus")
                 }
             }.padding(.horizontal, 24).padding(.vertical, 10)
         }
@@ -132,7 +132,7 @@ struct ReaderView: View {
                 }
                 Section("排版") {
                     Text("字号 \(Int(fontSize))")
-                    Slider(value: $fontSize, in: 16...36, step: 1)
+                    Slider(value: $fontSize, in: 16...36, step: 1).accessibilityIdentifier("reading.fontSize")
                     Text("行间距 \(Int(lineSpacing))")
                     Slider(value: $lineSpacing, in: 4...24, step: 1)
                     Toggle("宋体阅读", isOn: $serif)

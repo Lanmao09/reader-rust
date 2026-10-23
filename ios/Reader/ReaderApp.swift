@@ -49,6 +49,7 @@ struct BookshelfView: View {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 20)], alignment: .leading, spacing: 28) {
                             ForEach(books) { book in
                                 Button { selectedBook = book } label: { BookTile(book: book) }.buttonStyle(.plain)
+                                    .accessibilityIdentifier("book:" + book.bookUrl)
                             }
                         }
                     }
@@ -113,12 +114,15 @@ struct ConnectionView: View {
                 Section {
                     TextField("https://你的阅读服务器", text: $server)
                         .keyboardType(.URL).textContentType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .accessibilityIdentifier("connection.server")
                 } header: { Text("服务器地址") } footer: {
                     Text("可填写 NAS 的局域网地址或反代地址，也支持端口和子路径。离家后需要能访问该地址；公网连接建议使用 HTTPS。")
                 }
                 Section {
                     TextField("与网页相同的账号", text: $username).textContentType(.username).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .accessibilityIdentifier("connection.username")
                     SecureField("密码", text: $password).textContentType(.password)
+                        .accessibilityIdentifier("connection.password")
                 } header: { Text("登录") } footer: { Text("密码仅用于本次登录。登录凭证保存在本机钥匙串；不同服务器和账号的离线缓存相互隔离。") }
                 Section {
                     SecureField("服务器安全密钥（如有）", text: $secureKey)
