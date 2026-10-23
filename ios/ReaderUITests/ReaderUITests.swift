@@ -39,9 +39,11 @@ final class ReaderUITests: XCTestCase {
     }
 
     @MainActor
-    private func wait(_ predicate: NSPredicate, on element: XCUIElement, message: String, timeout: TimeInterval = 20) async throws {
+    private func wait(_ predicate: NSPredicate, on element: XCUIElement, message: @autoclosure () -> String, timeout: TimeInterval = 20) async throws {
         let result = await XCTWaiter.fulfillment(of: [XCTNSPredicateExpectation(predicate: predicate, object: element)], timeout: timeout)
-        try require(result == .completed, message + " (wait result: \(result.rawValue))")
+        if result != .completed {
+            try require(false, message() + " (wait result: \(result.rawValue))")
+        }
     }
 
     @MainActor
@@ -67,17 +69,13 @@ final class ReaderUITests: XCTestCase {
         app.buttons["服务器与账号"].tap()
         fill(app.textFields["connection.server"], with: server.absoluteString)
         fill(app.textFields["connection.username"], with: "e2ereader")
+        try require(app.textFields["connection.username"].value as? String == "e2ereader", "账号输入与预期不符")
         app.secureTextFields["connection.password"].tap()
         app.secureTextFields["connection.password"].typeText("e2epassword")
         let connect = app.buttons["连接并同步书架"]
         if !connect.isHittable { app.swipeUp() }
         connect.tap()
-        do {
-            try await wait(NSPredicate(format: "exists == false"), on: connect, message: "连接表单未关闭")
-        } catch {
-            XCTFail("连接失败：" + visibleText(app))
-            throw error
-        }
+        try await wait(NSPredicate(format: "exists == false"), on: app.navigationBars["服务器与账号"], message: "连接失败：" + visibleText(app))
         try openBook(app)
         try await expectChapter(1, app: app)
 

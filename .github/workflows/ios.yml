@@ -14,6 +14,9 @@ jobs:
   build:
     name: iOS (${{ matrix.device }})
     runs-on: macos-15-intel
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      SIMULATOR_RUNTIME: com.apple.CoreSimulator.SimRuntime.iOS-18-5
     timeout-minutes: 30
     concurrency:
       group: ios-${{ github.ref }}-${{ matrix.device }}
@@ -46,8 +49,10 @@ jobs:
         env:
           DEVICE_KIND: ${{ matrix.device }}
         run: |
-          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys,os; d=json.load(sys.stdin); print(next(x["udid"] for runtime,devices in d["devices"].items() if ".iOS-" in runtime for x in devices if x["name"].startswith(os.environ["DEVICE_KIND"])))')
+          xcodebuild -version
+          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys,os; d=json.load(sys.stdin); devices=d["devices"][os.environ["SIMULATOR_RUNTIME"]]; print(next(x["udid"] for x in devices if x["name"].startswith(os.environ["DEVICE_KIND"])))')
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
+          echo "Simulator: $SIMULATOR_RUNTIME / $DEVICE_KIND / $simulator_id" >> "$GITHUB_STEP_SUMMARY"
           xcrun simctl bootstatus "$simulator_id" -b
       - name: Run native iOS tests
         shell: bash

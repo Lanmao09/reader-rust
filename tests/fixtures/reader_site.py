@@ -18,6 +18,7 @@ requests = {}
 revision = 0
 book_index = 0
 book_position = 0
+last_login = None
 
 
 def book(base):
@@ -54,13 +55,32 @@ class Handler(BaseHTTPRequestHandler):
     def ok(self, value):
         self.send(dict(isSuccess=True, errorMsg='', data=value))
 
+    def read_json(self):
+        # URLSession may stream a request with chunked transfer encoding.
+        # BaseHTTPRequestHandler does not decode that framing for us.
+        if self.headers.get('Transfer-Encoding', '').lower() == 'chunked':
+            chunks = []
+            while True:
+                size = int(self.rfile.readline().split(b';', 1)[0].strip(), 16)
+                if size == 0:
+                    while self.rfile.readline().strip():
+                        pass
+                    break
+                chunks.append(self.rfile.read(size))
+                if self.rfile.read(2) != b'\r\n':
+                    raise ValueError('Invalid chunk framing')
+            data = b''.join(chunks)
+        else:
+            data = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        return json.loads(data or '{}')
+
     def do_GET(self):
         global requests
         path = urlsplit(self.path).path
         with state_lock:
             requests[path] = requests.get(path, 0) + 1
         if path == '/__state':
-            self.send(dict(book=book(self.base), requests=requests, offline=offline))
+            self.send(dict(book=book(self.base), requests=requests, offline=offline, lastLogin=last_login))
         elif path.startswith('/reader3/') and args.mobile_api:
             if offline:
                 self.send(dict(isSuccess=False, errorMsg='fixture offline', data=None), 503)
@@ -94,11 +114,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send(dict(error='not found'), 404)
 
     def do_POST(self):
-        global offline, revision, book_index, book_position
+        global offline, revision, book_index, book_position, last_login
         path = urlsplit(self.path).path
         with state_lock:
             requests[path] = requests.get(path, 0) + 1
-        payload = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or '{}')
+        payload = self.read_json()
         if path == '/__control':
             with state_lock:
                 if 'offline' in payload:
@@ -116,6 +136,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send(dict(isSuccess=False, errorMsg='fixture offline', data=None), 503)
             return
         if path == '/reader3/login':
+            last_login = dict(usernameMatches=payload.get('username') == 'e2ereader',
+                              passwordMatches=payload.get('password') == 'e2epassword',
+                              usernameLength=len(payload.get('username', '')),
+                              passwordLength=len(payload.get('password', '')),
+                              fields=sorted(payload), transferEncoding=self.headers.get('Transfer-Encoding'))
             if payload.get('username') != 'e2ereader' or payload.get('password') != 'e2epassword':
                 self.send(dict(isSuccess=False, errorMsg='fixture login rejected', data=None), 400)
             else:
