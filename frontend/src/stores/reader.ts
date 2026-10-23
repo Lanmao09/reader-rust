@@ -37,6 +37,7 @@ interface PersistedReaderSession {
   currentIndex: number
   chapterScrollProgress: number
   updatedAt: number
+  serverProgressRevision?: number
 }
 
 /* ─── Reading config type ─── */
@@ -209,6 +210,7 @@ export const useReaderStore = defineStore('reader', () => {
   const pendingRemoteProgress = ref<Book | null>(null)
   let progressSavePromise: Promise<void> | null = null
   let progressGeneration = 0
+  let readerEpoch = 0
 
   const currentChapter = computed(() => chapters.value[currentIndex.value] || null)
   const hasNext = computed(() => currentIndex.value < chapters.value.length - 1)
@@ -362,6 +364,7 @@ export const useReaderStore = defineStore('reader', () => {
       chapters: chapters.value,
       currentIndex: currentIndex.value,
       chapterScrollProgress: chapterScrollProgress.value,
+      serverProgressRevision: serverProgressRevision.value,
       updatedAt: Date.now(),
     }
     localStorage.setItem(READER_SESSION_KEY, JSON.stringify(payload))
@@ -420,6 +423,9 @@ export const useReaderStore = defineStore('reader', () => {
     if (!session?.book || !session.chapters?.length) return false
 
     book.value = session.book
+    readerEpoch += 1
+    serverProgressRevision.value = session.serverProgressRevision ?? 0
+    pendingRemoteProgress.value = null
     chapters.value = session.chapters
     loadReadChapterHistory(session.book)
 
@@ -1185,6 +1191,7 @@ export const useReaderStore = defineStore('reader', () => {
 
   /* ─── Book / chapter ops ─── */
   async function loadBook(b: Book) {
+    readerEpoch += 1
     loading.value = true
     b = await getShelfBook(b.bookUrl).catch(() => b)
     book.value = b
@@ -1247,10 +1254,12 @@ export const useReaderStore = defineStore('reader', () => {
     const payload = currentServerProgressPayload(index, progress)
     if (!payload) return
     const generation = progressGeneration
+    const epoch = readerEpoch
     progressSavePromise = syncBookProgress(payload).then((result) => {
-      if (book.value?.bookUrl !== payload.bookUrl) return
+      if (book.value?.bookUrl !== payload.bookUrl || readerEpoch !== epoch) return
       if (!result.accepted) { pendingRemoteProgress.value = result.book; return }
       serverProgressRevision.value = result.book.durChapterTime || 0
+      saveReaderSession()
       if (generation === progressGeneration) {
         progressDirty.value = false
         if (book.value) book.value.durChapterTime = result.book.durChapterTime
@@ -1283,17 +1292,19 @@ export const useReaderStore = defineStore('reader', () => {
     if (secureKey) headers['X-Secure-Key'] = secureKey
 
     const generation = progressGeneration
+    const epoch = readerEpoch
     void fetch('/reader3/syncBookProgress', {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
       keepalive: true,
     }).then(async (response) => {
-      if (!response.ok || book.value?.bookUrl !== payload.bookUrl) return
+      if (!response.ok || book.value?.bookUrl !== payload.bookUrl || readerEpoch !== epoch) return
       const envelope = await response.json()
       if (!envelope.isSuccess) return
       if (!envelope.data.accepted) { pendingRemoteProgress.value = envelope.data.book; return }
       serverProgressRevision.value = envelope.data.book.durChapterTime || 0
+      saveReaderSession()
       if (generation === progressGeneration) {
         progressDirty.value = false
         lastServerProgressKey.value = nextKey

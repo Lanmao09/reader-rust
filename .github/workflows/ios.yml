@@ -36,10 +36,29 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
       - name: Build unsigned IPA for personal signing
         run: bash ios/build-ipa.sh
+      - name: Verify executed tests and record IPA checksum
+        shell: bash
+        run: |
+          xcrun xcresulttool get test-results summary --path ios/build/TestResults.xcresult > ios/build/TestSummary.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          summary = json.loads(Path('ios/build/TestSummary.json').read_text())
+          passed = summary['passedTests']
+          failed = summary['failedTests']
+          assert passed >= 5 and failed == 0, summary
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
+              report.write(f'Native iOS tests: **{passed} passed, {failed} failed**.\n\n')
+          PY
+          shasum -a 256 ios/build/Reader-unsigned.ipa > ios/build/Reader-unsigned.ipa.sha256
+          cat ios/build/Reader-unsigned.ipa.sha256 >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: Reader-unsigned-IPA
-          path: ios/build/Reader-unsigned.ipa
+          path: |
+            ios/build/Reader-unsigned.ipa
+            ios/build/Reader-unsigned.ipa.sha256
+            ios/build/TestSummary.json
           if-no-files-found: error
           retention-days: 14
       - name: Upload test results

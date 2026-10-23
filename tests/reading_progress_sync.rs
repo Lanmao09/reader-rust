@@ -33,6 +33,12 @@ async fn stale_device_cannot_replace_newer_progress_or_hide_a_conflict() {
         .await
         .unwrap();
     assert!(first.accepted);
+    let replay = service
+        .sync_reading_progress("reader", "book1", 5, Some(3750), Some(0), None)
+        .await
+        .unwrap();
+    assert!(replay.accepted);
+    assert_eq!(replay.book.dur_chapter_time, first.book.dur_chapter_time);
     let stale = service
         .sync_reading_progress("reader", "book1", 1, Some(0), Some(0), None)
         .await

@@ -966,7 +966,7 @@ impl BookService {
         let mut normalized = Vec::with_capacity(books.len());
         for mut book in books {
             if let Some(current) = existing.iter().find(|b| books_match_for_save(b, &book)) {
-                preserve_newer_progress(current, &mut book);
+                copy_reading_progress(current, &mut book);
             }
             sanitize_book_urls(&mut book);
             if book.origin.trim().is_empty() {
@@ -1051,7 +1051,10 @@ impl BookService {
         let revision = book.dur_chapter_time.unwrap_or(0);
         if expected_revision.is_some_and(|expected| expected != revision) {
             return Ok(ProgressSyncResult {
-                accepted: false,
+                // A background upload can succeed even when its response is lost.
+                // Replaying the identical position is an acknowledgement, not a conflict.
+                accepted: book.dur_chapter_index == Some(index)
+                    && book.dur_chapter_pos == Some(position.unwrap_or(0)),
                 book: book.clone(),
             });
         }
@@ -1755,11 +1758,15 @@ fn content_type_from_ext(ext: &str) -> String {
 
 fn preserve_newer_progress(current: &Book, incoming: &mut Book) {
     if current.dur_chapter_time.unwrap_or(0) > incoming.dur_chapter_time.unwrap_or(0) {
-        incoming.dur_chapter_index = current.dur_chapter_index;
-        incoming.dur_chapter_pos = current.dur_chapter_pos;
-        incoming.dur_chapter_title = current.dur_chapter_title.clone();
-        incoming.dur_chapter_time = current.dur_chapter_time;
+        copy_reading_progress(current, incoming);
     }
+}
+
+fn copy_reading_progress(current: &Book, incoming: &mut Book) {
+    incoming.dur_chapter_index = current.dur_chapter_index;
+    incoming.dur_chapter_pos = current.dur_chapter_pos;
+    incoming.dur_chapter_title = current.dur_chapter_title.clone();
+    incoming.dur_chapter_time = current.dur_chapter_time;
 }
 
 #[cfg(test)]
