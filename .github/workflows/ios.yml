@@ -40,7 +40,7 @@ jobs:
           else:
               raise RuntimeError('UI fixture failed to start')
           PY
-      - name: Select an installed simulator
+      - name: Select and boot an installed simulator
         id: simulator
         shell: bash
         env:
@@ -48,6 +48,7 @@ jobs:
         run: |
           simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys,os; d=json.load(sys.stdin); print(next(x["udid"] for runtime,devices in d["devices"].items() if ".iOS-" in runtime for x in devices if x["name"].startswith(os.environ["DEVICE_KIND"])))')
           echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
+          xcrun simctl bootstatus "$simulator_id" -b
       - name: Run native iOS tests
         shell: bash
         run: |
@@ -57,12 +58,13 @@ jobs:
             -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
             -parallel-testing-enabled NO \
             -derivedDataPath ios/.build -resultBundlePath ios/build/TestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee ios/build/native-test.log
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO 2>&1 | tee ios/build/native-test.log
       - name: Publish actionable test failure diagnostics
         if: failure()
         run: |
           python3 - <<'PY'
           import json, re, subprocess
+          import urllib.request
           from pathlib import Path
           def annotation(message):
               message = str(message).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
@@ -73,6 +75,11 @@ jobs:
                        if re.search(r'error:|XCTAssert|failed -|failed to|Testing failed|Test Case .*failed', line, re.I)]
               for line in list(dict.fromkeys(lines))[-12:]:
                   annotation(line)
+          try:
+              state = urllib.request.urlopen('http://127.0.0.1:18998/__state', timeout=2).read().decode()
+              annotation('Controlled fixture state after failure: ' + state)
+          except OSError as error:
+              annotation('Cannot read fixture state: ' + str(error))
           bundle = Path('ios/build/TestResults.xcresult')
           if bundle.exists():
               result = subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', str(bundle)], capture_output=True, text=True)

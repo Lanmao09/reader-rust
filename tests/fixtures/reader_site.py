@@ -96,6 +96,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         global offline, revision, book_index, book_position
         path = urlsplit(self.path).path
+        with state_lock:
+            requests[path] = requests.get(path, 0) + 1
         payload = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or '{}')
         if path == '/__control':
             with state_lock:

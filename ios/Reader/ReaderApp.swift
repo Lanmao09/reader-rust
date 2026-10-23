@@ -127,7 +127,7 @@ struct ConnectionView: View {
                 Section {
                     SecureField("服务器安全密钥（如有）", text: $secureKey)
                 } header: { Text("高级选项") } footer: { Text("仅当网页也要求安全密钥时填写。未开启账号模式的服务器可留空账号和密码。") }
-                if let error { Section { Text(error).foregroundStyle(.red) } }
+                if let error { Section { Text(error).foregroundStyle(.red).accessibilityIdentifier("connection.error") } }
                 Section {
                     Button {
                         connecting = true; error = nil
