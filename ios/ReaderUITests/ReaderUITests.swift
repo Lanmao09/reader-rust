@@ -75,8 +75,18 @@ final class ReaderUITests: XCTestCase {
         app.buttons["服务器与账号"].tap()
         try await fill(app.textFields["connection.server"], with: server.absoluteString)
         try await fill(app.textFields["connection.username"], with: "e2ereader")
-        app.secureTextFields["connection.password"].tap()
-        for character in "e2epassword" { app.secureTextFields["connection.password"].typeText(String(character)) }
+        let password = app.secureTextFields["connection.password"]
+        password.tap()
+        for (index, character) in "e2epassword".enumerated() {
+            // Send to the focused keyboard without focusing the secure field again.
+            app.typeText(String(character))
+            let expectedCount = index + 1
+            let committed = NSPredicate { object, _ in
+                guard let field = object as? XCUIElement, let value = field.value as? String else { return false }
+                return value.count == expectedCount
+            }
+            try await wait(committed, on: password, message: "密码输入未保留第 \(expectedCount) 个字符")
+        }
         let connect = app.buttons["连接并同步书架"]
         if !connect.isHittable { app.swipeUp() }
         connect.tap()

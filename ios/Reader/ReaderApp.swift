@@ -121,13 +121,12 @@ struct ConnectionView: View {
                 Section {
                     TextField("与网页相同的账号", text: $username).textContentType(.username).textInputAutocapitalization(.never).autocorrectionDisabled()
                         .accessibilityIdentifier("connection.username")
-                    SecureField("密码", text: $password).textContentType(.password)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                        .accessibilityIdentifier("connection.password")
+                    SecureEntry(placeholder: "密码", text: $password, contentType: .password, identifier: "connection.password")
+                        .frame(maxWidth: .infinity, minHeight: 24)
                 } header: { Text("登录") } footer: { Text("密码仅用于本次登录。登录凭证保存在本机钥匙串；不同服务器和账号的离线缓存相互隔离。") }
                 Section {
-                    SecureField("服务器安全密钥（如有）", text: $secureKey)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    SecureEntry(placeholder: "服务器安全密钥（如有）", text: $secureKey, contentType: nil, identifier: "connection.secureKey")
+                        .frame(maxWidth: .infinity, minHeight: 24)
                 } header: { Text("高级选项") } footer: { Text("仅当网页也要求安全密钥时填写。未开启账号模式的服务器可留空账号和密码。") }
                 if let error { Section { Text(error).foregroundStyle(.red).accessibilityIdentifier("connection.error") } }
                 Section {
