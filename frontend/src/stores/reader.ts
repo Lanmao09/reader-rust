@@ -6,7 +6,8 @@ import { useAiBookStore } from './aiBook'
 import {
   getChapterList,
   getBookContent,
-  saveBookProgress,
+  syncBookProgress,
+  getShelfBook,
   setBookSource as apiSetBookSource,
 } from '../api/bookshelf'
 import {
@@ -20,6 +21,7 @@ import type { Book, BookChapter, Bookmark, ReplaceRule } from '../types'
 import { getBrowserCachedChapter, setBrowserCachedChapter } from '../utils/browserCache'
 import { isLocalBook } from '../utils/localBook'
 import { saveRecentReadBook } from '../utils/recentBooks'
+import { buildAuthHeaderValues } from '../utils/secureAccess'
 import {
   DEFAULT_OPENAI_BASE_URL,
   requestOpenAISpeechAudio,
@@ -203,6 +205,10 @@ export const useReaderStore = defineStore('reader', () => {
   const readChapterKeys = ref<Set<string>>(new Set())
   const progressDirty = ref(false)
   const lastServerProgressKey = ref('')
+  const serverProgressRevision = ref(0)
+  const pendingRemoteProgress = ref<Book | null>(null)
+  let progressSavePromise: Promise<void> | null = null
+  let progressGeneration = 0
 
   const currentChapter = computed(() => chapters.value[currentIndex.value] || null)
   const hasNext = computed(() => currentIndex.value < chapters.value.length - 1)
@@ -380,11 +386,13 @@ export const useReaderStore = defineStore('reader', () => {
       bookUrl: book.value.bookUrl,
       index,
       position: encodeServerProgress(progress),
+      expectedUpdatedAt: serverProgressRevision.value,
     }
   }
 
   function markProgressDirty() {
     progressDirty.value = true
+    progressGeneration += 1
   }
 
   function syncLocalBookProgress(progress = chapterScrollProgress.value) {
@@ -1178,7 +1186,10 @@ export const useReaderStore = defineStore('reader', () => {
   /* ─── Book / chapter ops ─── */
   async function loadBook(b: Book) {
     loading.value = true
+    b = await getShelfBook(b.bookUrl).catch(() => b)
     book.value = b
+    serverProgressRevision.value = b.durChapterTime || 0
+    pendingRemoteProgress.value = null
     chapters.value = []
     content.value = ''
     appStore.markBookOpened(b.bookUrl)
@@ -1228,12 +1239,25 @@ export const useReaderStore = defineStore('reader', () => {
   }
 
   async function persistProgress(index = currentIndex.value, progress = chapterScrollProgress.value) {
+    if (pendingRemoteProgress.value) return
+    if (progressSavePromise) {
+      await progressSavePromise
+      return flushProgressToServer()
+    }
     const payload = currentServerProgressPayload(index, progress)
     if (!payload) return
-    await saveBookProgress(payload).then(() => {
-      progressDirty.value = false
-      lastServerProgressKey.value = `${payload.bookUrl}::${payload.index}::${payload.position}`
-    }).catch(() => undefined)
+    const generation = progressGeneration
+    progressSavePromise = syncBookProgress(payload).then((result) => {
+      if (book.value?.bookUrl !== payload.bookUrl) return
+      if (!result.accepted) { pendingRemoteProgress.value = result.book; return }
+      serverProgressRevision.value = result.book.durChapterTime || 0
+      if (generation === progressGeneration) {
+        progressDirty.value = false
+        if (book.value) book.value.durChapterTime = result.book.durChapterTime
+        lastServerProgressKey.value = `${payload.bookUrl}::${payload.index}::${payload.position}`
+      }
+    }).catch(() => undefined).finally(() => { progressSavePromise = null })
+    await progressSavePromise
   }
 
   async function flushProgressToServer(force = false) {
@@ -1245,6 +1269,7 @@ export const useReaderStore = defineStore('reader', () => {
   }
 
   function flushProgressToServerKeepalive(force = false) {
+    if (pendingRemoteProgress.value) return
     const payload = currentServerProgressPayload()
     if (!payload || typeof fetch === 'undefined') return
     const nextKey = `${payload.bookUrl}::${payload.index}::${payload.position}`
@@ -1253,19 +1278,48 @@ export const useReaderStore = defineStore('reader', () => {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
-    const token = localStorage.getItem('accessToken')
-    if (token) {
-      headers.Authorization = token
-    }
+    const { accessToken, secureKey } = buildAuthHeaderValues(localStorage)
+    if (accessToken) headers.Authorization = accessToken
+    if (secureKey) headers['X-Secure-Key'] = secureKey
 
-    void fetch('/reader3/saveBookProgress', {
+    const generation = progressGeneration
+    void fetch('/reader3/syncBookProgress', {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
       keepalive: true,
+    }).then(async (response) => {
+      if (!response.ok || book.value?.bookUrl !== payload.bookUrl) return
+      const envelope = await response.json()
+      if (!envelope.isSuccess) return
+      if (!envelope.data.accepted) { pendingRemoteProgress.value = envelope.data.book; return }
+      serverProgressRevision.value = envelope.data.book.durChapterTime || 0
+      if (generation === progressGeneration) {
+        progressDirty.value = false
+        lastServerProgressKey.value = nextKey
+      }
     }).catch(() => undefined)
+  }
+
+  async function resolveRemoteProgress(keepLocal: boolean) {
+    const remote = pendingRemoteProgress.value
+    if (!remote || !book.value) return
+    serverProgressRevision.value = remote.durChapterTime || 0
+    pendingRemoteProgress.value = null
+    if (keepLocal) { markProgressDirty(); await flushProgressToServer(true); return }
+    book.value = remote
+    await loadChapter(remote.durChapterIndex || 0)
     progressDirty.value = false
-    lastServerProgressKey.value = nextKey
+  }
+
+  async function refreshProgressFromServer() {
+    if (!book.value || loading.value || progressSavePromise || pendingRemoteProgress.value) return
+    try {
+      const remote = await getShelfBook(book.value.bookUrl)
+      if ((remote.durChapterTime || 0) === serverProgressRevision.value) return
+      pendingRemoteProgress.value = remote
+      if (!progressDirty.value) await resolveRemoteProgress(false)
+    } catch { /* Retain the local reading session when offline. */ }
   }
 
   async function fetchChapterContent(index: number, forceRefresh = false) {
@@ -1588,6 +1642,7 @@ export const useReaderStore = defineStore('reader', () => {
       chapterScrollProgress, setChapterScrollProgress,
       getPersistedReaderSession, restorePersistedSession,
       persistProgress, flushProgressToServer, flushProgressToServerKeepalive,
+      pendingRemoteProgress, resolveRemoteProgress, refreshProgressFromServer,
       config, updateConfig, resetConfig, saveConfig,
     themeIndex, isNight, currentTheme, setThemeIndex, toggleNight,
     autoReading, autoReadingTimer, toggleAutoReading, stopAutoReading,

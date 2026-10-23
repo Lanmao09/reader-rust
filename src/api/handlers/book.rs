@@ -118,6 +118,70 @@ pub struct SaveBookProgressRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncBookProgressRequest {
+    book_url: String,
+    index: i32,
+    position: i32,
+    expected_updated_at: i64,
+}
+
+pub async fn sync_book_progress(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<SyncBookProgressRequest>,
+) -> Result<Json<ApiResponse<crate::service::book_service::ProgressSyncResult>>, AppError> {
+    let user_ns = state
+        .user_service
+        .resolve_user_ns_with_override(auth.access_token(), auth.secure_key(), auth.user_ns())
+        .await
+        .map_err(|_| AppError::BadRequest("NEED_LOGIN".to_string()))?;
+    let book_url = repair_encoded_url(&req.book_url);
+    let mut metadata = state
+        .book_service
+        .get_shelf_book(&user_ns, &book_url)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("书籍未加入书架".to_string()))?;
+    // Progress writes must remain fast and work offline: consult cached TOCs only.
+    let chapters = if is_local_txt_url(&book_url) {
+        state
+            .local_txt_book_service
+            .get_chapter_list(&user_ns, &book_url)
+            .await
+            .ok()
+    } else if is_local_epub_url(&book_url) {
+        state
+            .local_epub_book_service
+            .get_chapter_list(&user_ns, &book_url)
+            .await
+            .ok()
+    } else {
+        state
+            .book_service
+            .load_chapter_list_cache(&user_ns, metadata.toc_url.as_deref().unwrap_or(&book_url))
+            .await
+            .ok()
+            .flatten()
+    };
+    metadata.dur_chapter_title = chapters
+        .as_ref()
+        .and_then(|list| list.iter().find(|c| c.index == req.index))
+        .map(|c| c.title.clone());
+    let result = state
+        .book_service
+        .sync_reading_progress(
+            &user_ns,
+            &book_url,
+            req.index,
+            Some(req.position),
+            Some(req.expected_updated_at),
+            Some(&metadata),
+        )
+        .await?;
+    Ok(Json(ApiResponse::ok(result)))
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SearchBookRef {
     #[serde(rename = "bookUrl")]
     book_url: Option<String>,
@@ -1441,7 +1505,17 @@ pub async fn save_book_progress(
         updated.dur_chapter_pos = Some(pos);
     }
 
-    let _ = state.book_service.save_book(&user_ns, updated).await?;
+    state
+        .book_service
+        .sync_reading_progress(
+            &user_ns,
+            &book_url,
+            index,
+            req.position,
+            None,
+            Some(&updated),
+        )
+        .await?;
     Ok(Json(ApiResponse::ok(serde_json::json!(""))))
 }
 

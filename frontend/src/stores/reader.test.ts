@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAppStore } from './app'
 import { useReaderStore } from './reader'
-import { getBookContent } from '../api/bookshelf'
+import { getBookContent, getChapterList, getShelfBook, syncBookProgress } from '../api/bookshelf'
 import { getBrowserCachedChapter } from '../utils/browserCache'
 
 vi.mock('../api/bookshelf', () => ({
   getChapterList: vi.fn(),
   getBookContent: vi.fn(),
   saveBookProgress: vi.fn(),
+  getShelfBook: vi.fn(),
+  syncBookProgress: vi.fn(),
   setBookSource: vi.fn(),
 }))
 
@@ -49,6 +51,60 @@ describe('reader local txt chapters', () => {
     })
     vi.mocked(getBookContent).mockReset()
     vi.mocked(getBrowserCachedChapter).mockReset()
+    vi.mocked(syncBookProgress).mockReset()
+  })
+
+  it('keeps edits made while an earlier progress save is in flight', async () => {
+    const store = useReaderStore()
+    store.book = { name: '测试书', author: '作者', bookUrl: 'book1', origin: 'source' }
+    store.setChapterScrollProgress(0.2)
+    let finish!: (value: { accepted: boolean; book: typeof store.book }) => void
+    vi.mocked(syncBookProgress).mockReturnValue(new Promise((resolve) => { finish = resolve }) as never)
+    const saving = store.flushProgressToServer()
+    store.setChapterScrollProgress(0.5)
+    finish({ accepted: true, book: { ...store.book, durChapterTime: 123 } })
+    await saving
+    vi.mocked(syncBookProgress).mockResolvedValue({ accepted: true, book: { ...store.book, durChapterTime: 124 } })
+    await store.flushProgressToServer()
+    expect(syncBookProgress).toHaveBeenLastCalledWith(expect.objectContaining({ position: 5000, expectedUpdatedAt: 123 }))
+  })
+
+  it('opens the latest cloud chapter even when the bookshelf entry is stale', async () => {
+    const store = useReaderStore()
+    const stale = { name: '测试书', author: '作者', bookUrl: 'book1', origin: 'source', durChapterIndex: 1 }
+    vi.mocked(getShelfBook).mockResolvedValue({ ...stale, durChapterIndex: 9, durChapterTime: 200 })
+    vi.mocked(getChapterList).mockResolvedValue([{ index: 9, url: 'chapter9', title: '第十章' }])
+    await store.loadBook(stale)
+    expect(store.currentIndex).toBe(9)
+    expect(store.book?.durChapterTime).toBe(200)
+  })
+
+  it('retains both positions on a conflict and waits for an explicit decision', async () => {
+    const store = useReaderStore()
+    store.book = { name: '测试书', author: '作者', bookUrl: 'book1', origin: 'source' }
+    store.setChapterScrollProgress(0.4)
+    const remote = { ...store.book, durChapterIndex: 8, durChapterTime: 200 }
+    vi.mocked(syncBookProgress).mockResolvedValue({ accepted: false, book: remote })
+    await store.flushProgressToServer()
+    expect(store.pendingRemoteProgress).toEqual(remote)
+    expect(store.chapterScrollProgress).toBe(0.4)
+    await store.flushProgressToServer(true)
+    expect(syncBookProgress).toHaveBeenCalledTimes(1)
+    vi.mocked(syncBookProgress).mockResolvedValue({ accepted: true, book: { ...remote, durChapterTime: 201 } })
+    await store.resolveRemoteProgress(true)
+    expect(syncBookProgress).toHaveBeenLastCalledWith(expect.objectContaining({ expectedUpdatedAt: 200, position: 4000 }))
+    expect(store.pendingRemoteProgress).toBeNull()
+  })
+
+  it('keeps unsent progress after a failed network save', async () => {
+    const store = useReaderStore()
+    store.book = { name: '测试书', author: '作者', bookUrl: 'book1', origin: 'source' }
+    store.setChapterScrollProgress(0.7)
+    vi.mocked(syncBookProgress).mockRejectedValue(new Error('offline'))
+    await store.flushProgressToServer()
+    vi.mocked(syncBookProgress).mockResolvedValue({ accepted: true, book: { ...store.book, durChapterTime: 101 } })
+    await store.flushProgressToServer()
+    expect(syncBookProgress).toHaveBeenCalledTimes(2)
   })
 
   it('fetches uploaded local txt content from backend even when browser reports offline', async () => {

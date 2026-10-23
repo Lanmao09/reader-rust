@@ -130,6 +130,10 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::save_book_progress),
         )
         .route(
+            "/reader3/syncBookProgress",
+            post(handlers::sync_book_progress),
+        )
+        .route(
             "/reader3/getBookInfo",
             get(handlers::get_book_info).post(handlers::get_book_info),
         )

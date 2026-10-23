@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::{sleep, Duration, Instant};
 
 /// State for background chapter fetching
@@ -43,6 +43,14 @@ pub struct BookService {
     storage_dir: PathBuf,
     source_cookies: Arc<RwLock<HashMap<String, String>>>,
     rate_states: Arc<RwLock<HashMap<String, RateState>>>,
+    shelf_writes: Arc<Mutex<()>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressSyncResult {
+    pub accepted: bool,
+    pub book: Book,
 }
 
 #[derive(Clone, Default)]
@@ -76,6 +84,7 @@ impl BookService {
             storage_dir,
             source_cookies: Arc::new(RwLock::new(HashMap::new())),
             rate_states: Arc::new(RwLock::new(HashMap::new())),
+            shelf_writes: Arc::new(Mutex::new(())),
         }
     }
 
@@ -900,6 +909,7 @@ impl BookService {
     }
 
     pub async fn save_book(&self, user_ns: &str, mut book: Book) -> Result<Book, AppError> {
+        let _write = self.shelf_writes.lock().await;
         sanitize_book_urls(&mut book);
         if book.origin.trim().is_empty() {
             return Err(AppError::BadRequest("missing origin".to_string()));
@@ -919,6 +929,7 @@ impl BookService {
 
         if let Some(i) = exist_idx {
             let exist = list[i].clone();
+            preserve_newer_progress(&exist, &mut book);
             if book.dur_chapter_index.is_none() {
                 book.dur_chapter_index = exist.dur_chapter_index;
             }
@@ -950,8 +961,13 @@ impl BookService {
     }
 
     pub async fn save_books(&self, user_ns: &str, books: Vec<Book>) -> Result<Vec<Book>, AppError> {
+        let _write = self.shelf_writes.lock().await;
+        let existing = self.read_bookshelf(user_ns).await?;
         let mut normalized = Vec::with_capacity(books.len());
         for mut book in books {
+            if let Some(current) = existing.iter().find(|b| books_match_for_save(b, &book)) {
+                preserve_newer_progress(current, &mut book);
+            }
             sanitize_book_urls(&mut book);
             if book.origin.trim().is_empty() {
                 return Err(AppError::BadRequest("missing origin".to_string()));
@@ -966,6 +982,7 @@ impl BookService {
     }
 
     pub async fn delete_book(&self, user_ns: &str, book: &Book) -> Result<bool, AppError> {
+        let _write = self.shelf_writes.lock().await;
         let mut list = self.read_bookshelf(user_ns).await?;
         let orig_len = list.len();
         let removed: Vec<Book> = list
@@ -985,6 +1002,7 @@ impl BookService {
     }
 
     pub async fn delete_books(&self, user_ns: &str, books: Vec<Book>) -> Result<usize, AppError> {
+        let _write = self.shelf_writes.lock().await;
         let mut list = self.read_bookshelf(user_ns).await?;
         let mut deleted = 0usize;
         let mut removed_books: Vec<Book> = Vec::new();
@@ -1008,6 +1026,55 @@ impl BookService {
             }
         }
         Ok(deleted)
+    }
+
+    /// Compare and write under the same lock, so an offline device cannot silently
+    /// replace a newer position. The revision is server generated, never a client clock.
+    pub async fn sync_reading_progress(
+        &self,
+        user_ns: &str,
+        book_url: &str,
+        index: i32,
+        position: Option<i32>,
+        expected_revision: Option<i64>,
+        metadata: Option<&Book>,
+    ) -> Result<ProgressSyncResult, AppError> {
+        if index < 0 || position.is_some_and(|p| !(0..=10000).contains(&p)) {
+            return Err(AppError::BadRequest("invalid reading position".to_string()));
+        }
+        let _write = self.shelf_writes.lock().await;
+        let mut list = self.read_bookshelf(user_ns).await?;
+        let book = list
+            .iter_mut()
+            .find(|b| b.book_url == book_url)
+            .ok_or_else(|| AppError::BadRequest("书籍未加入书架".to_string()))?;
+        let revision = book.dur_chapter_time.unwrap_or(0);
+        if expected_revision.is_some_and(|expected| expected != revision) {
+            return Ok(ProgressSyncResult {
+                accepted: false,
+                book: book.clone(),
+            });
+        }
+        book.dur_chapter_index = Some(index);
+        book.dur_chapter_pos = Some(position.unwrap_or(0));
+        book.dur_chapter_time = Some(
+            chrono::Utc::now()
+                .timestamp_millis()
+                .max(revision.saturating_add(1)),
+        );
+        if let Some(metadata) = metadata {
+            book.dur_chapter_title = metadata.dur_chapter_title.clone();
+            if metadata.total_chapter_num.is_some() {
+                book.total_chapter_num = metadata.total_chapter_num;
+                book.latest_chapter_title = metadata.latest_chapter_title.clone();
+            }
+        }
+        let saved = book.clone();
+        self.write_bookshelf(user_ns, &list).await?;
+        Ok(ProgressSyncResult {
+            accepted: true,
+            book: saved,
+        })
     }
 
     pub async fn cached_chapter_count(
@@ -1206,7 +1273,11 @@ impl BookService {
                 .map_err(|e| AppError::Internal(e.into()))?;
         }
         let data = serde_json::to_string(list).map_err(|e| AppError::BadRequest(e.to_string()))?;
-        fs::write(&path, data)
+        let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+        fs::write(&temporary, data)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+        fs::rename(&temporary, &path)
             .await
             .map_err(|e| AppError::Internal(e.into()))?;
         Ok(())
@@ -1680,6 +1751,15 @@ fn content_type_from_ext(ext: &str) -> String {
         _ => "application/octet-stream",
     }
     .to_string()
+}
+
+fn preserve_newer_progress(current: &Book, incoming: &mut Book) {
+    if current.dur_chapter_time.unwrap_or(0) > incoming.dur_chapter_time.unwrap_or(0) {
+        incoming.dur_chapter_index = current.dur_chapter_index;
+        incoming.dur_chapter_pos = current.dur_chapter_pos;
+        incoming.dur_chapter_title = current.dur_chapter_title.clone();
+        incoming.dur_chapter_time = current.dur_chapter_time;
+    }
 }
 
 #[cfg(test)]

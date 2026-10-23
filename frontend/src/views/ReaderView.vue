@@ -11,6 +11,11 @@
     @click="handleBackgroundClick"
     @contextmenu.prevent="handleContextMenu"
   >
+    <div v-if="store.pendingRemoteProgress" class="sync-conflict" role="status" @click.stop>
+      <span>另一设备读到了「{{ store.pendingRemoteProgress.durChapterTitle || `第 ${(store.pendingRemoteProgress.durChapterIndex || 0) + 1} 章` }}」</span>
+      <button @click="resolveProgress(false)">接着另一设备读</button>
+      <button @click="resolveProgress(true)">保留当前位置</button>
+    </div>
     <!-- Left Drawer Panels -->
     <Teleport to="body">
       <Transition name="fade">
@@ -715,8 +720,22 @@ function handleBeforeUnload() {
 }
 
 function handleVisibilityChange() {
-  if (document.visibilityState !== 'hidden') return
+  if (document.visibilityState !== 'hidden') {
+    void refreshRemoteProgress()
+    return
+  }
   persistReadingProgressTemporaryKeepalive()
+}
+
+async function refreshRemoteProgress() {
+  await store.refreshProgressFromServer()
+  loadSavedReadingPosition()
+  scheduleRestoreReadingPosition()
+}
+
+async function resolveProgress(keepLocal: boolean) {
+  await store.resolveRemoteProgress(keepLocal)
+  if (!keepLocal) { loadSavedReadingPosition(); scheduleRestoreReadingPosition() }
 }
 
 async function persistReadingProgressBeforeLeave() {
@@ -1849,6 +1868,14 @@ watch(
 </script>
 
 <style scoped>
+.sync-conflict {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 2000; max-width: calc(100vw - 32px); padding: 14px 18px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  background: var(--color-bg, #fff9f0); color: #493625;
+  border: 1px solid #c9b79f; border-radius: 12px; box-shadow: 0 4px 20px #0002;
+}
+.sync-conflict button { border: 1px solid #c9b79f; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
 .reader-view {
   height: 100vh;
   height: 100dvh;

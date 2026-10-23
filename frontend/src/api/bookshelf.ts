@@ -76,6 +76,17 @@ export function saveBookProgress(params: {
   return http.post<string>('/saveBookProgress', params).then((r) => r.data)
 }
 
+export interface ProgressSyncResult { accepted: boolean; book: Book }
+
+export function syncBookProgress(params: {
+  bookUrl: string
+  index: number
+  position: number
+  expectedUpdatedAt: number
+}) {
+  return http.post<ProgressSyncResult>('/syncBookProgress', params).then((r) => r.data)
+}
+
 export function deleteBookCache(bookUrl: string) {
   return http.post('/deleteBookCache', { bookUrl }).then((r) => r.data)
 }

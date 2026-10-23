@@ -1,0 +1,51 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Xcode project
+        run: python3 ios/generate_project.py
+      - name: Select an installed iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for runtime,devices in d["devices"].items() if ".iOS-" in runtime for x in devices if x["name"].startswith("iPhone")))')
+          echo "id=$simulator_id" >> "$GITHUB_OUTPUT"
+      - name: Run native iOS tests
+        run: |
+          xcodebuild test -project ios/Reader.xcodeproj -scheme Reader \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' \
+            -derivedDataPath ios/.build -resultBundlePath ios/build/TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+      - name: Build unsigned IPA for personal signing
+        run: bash ios/build-ipa.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Reader-unsigned-IPA
+          path: ios/build/Reader-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-test-results
+          path: ios/build/TestResults.xcresult
+          if-no-files-found: ignore
